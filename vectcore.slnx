@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="VectCore.App/VectCore.App.csproj" />
+  <Project Path="VectCore.Core/VectCore.Core.csproj" />
+  <Project Path="VectCore.Desktop/VectCore.Desktop.csproj" />
+</Solution>
