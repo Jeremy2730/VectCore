@@ -1,5 +1,6 @@
 using VectCore.Core.Mathematics;
 using VectCore.Core.Transformations;
+using VectCore.Core.Geometry;
 
 namespace VectCore.Core.Rendering;
 
@@ -28,5 +29,22 @@ public class Camera2D
                 );
 
         return scale.Multiply(translation);
+    }
+
+    public Point2D
+        ScreenToWorld(
+            double x,
+            double y)
+    {
+        double worldX =
+            (x / Zoom) + X;
+
+        double worldY =
+            (y / Zoom) + Y;
+
+        return new Point2D(
+            worldX,
+            worldY
+        );
     }
 }

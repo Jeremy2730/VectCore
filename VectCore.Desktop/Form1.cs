@@ -2,13 +2,16 @@ using System.Drawing;
 using VectCore.Core.Shapes;
 using VectCore.Core.Transformations;
 using VectCore.Core.Rendering;
+using VectCore.Core.Scene;
+using VectCore.Desktop.Rendering;
+using VectCore.Core.Selection;
+using VectCore.Core.Geometry;
 
 namespace VectCore.Desktop;
 
 public partial class Form1 : Form
 {
-    private RectangleShape rectangle;
-
+    private SceneGraph scene;
     private System.Windows.Forms.Timer timer;
 
     private float angle = 0;
@@ -17,9 +20,23 @@ public partial class Form1 : Form
 
     private Point lastMousePosition;
 
+    private SelectionManager
+        selectionManager;
+
+    private bool
+        isDraggingObject = false;
+
+    private Point2D
+        lastWorldMousePosition =
+            new Point2D(0, 0);
+      
+
     public Form1()
     {
         InitializeComponent();
+        
+        selectionManager =
+            new SelectionManager();
 
         camera = new Camera2D();
 
@@ -36,18 +53,23 @@ public partial class Form1 : Form
         Width = 1000;
         Height = 700;
 
-        rectangle = new RectangleShape(
-            200,
-            100
-        );
+        scene = new SceneGraph();
+
+        RectangleShape rect =
+            new RectangleShape(200, 100);
+
+        SceneObject obj =
+            new SceneObject(rect);
+
+        scene.Add(obj);
 
         timer = new System.Windows.Forms.Timer();
 
-        timer.Interval = 16;
+        //timer.Interval = 16;
 
-        timer.Tick += UpdateScene;
+        //timer.Tick += UpdateScene;
 
-        timer.Start();
+        //timer.Start();
         MouseWheel += OnMouseWheelZoom;
     }
 
@@ -57,13 +79,16 @@ public partial class Form1 : Form
     {
         angle += 1;
 
-        rectangle.Transform =
+        SceneObject obj =
+            scene.Objects[0];
+
+        obj.Transform =
             TransformationMatrix
                 .CreateTranslation(400, 300)
                 .Multiply(
                     TransformationMatrix
                         .CreateRotation(angle)
-                );
+                );        
 
         Invalidate();
     }
@@ -88,7 +113,31 @@ public partial class Form1 : Form
         object? sender,
         MouseEventArgs e)
     {
+        Point2D worldPoint =
+            camera.ScreenToWorld(
+                e.X,
+                e.Y
+            );
+
         if (e.Button == MouseButtons.Left)
+        {
+            selectionManager.SelectAt(
+                scene,
+                worldPoint
+            );
+
+            lastWorldMousePosition =
+                worldPoint;
+
+            if (selectionManager.SelectedObject != null)
+            {
+                isDraggingObject = true;
+            }
+
+            Invalidate();
+        }
+
+        if (e.Button == MouseButtons.Middle)
         {
             isPanning = true;
 
@@ -102,6 +151,11 @@ public partial class Form1 : Form
     {
         if (e.Button == MouseButtons.Left)
         {
+            isDraggingObject = false;
+        }
+
+        if (e.Button == MouseButtons.Middle)
+        {
             isPanning = false;
         }
     }
@@ -110,18 +164,60 @@ public partial class Form1 : Form
         object? sender,
         MouseEventArgs e)
     {
+        Point2D worldPoint =
+            camera.ScreenToWorld(
+                e.X,
+                e.Y
+            );
+
+        if (isDraggingObject &&
+            e.Button == MouseButtons.Left &&
+            selectionManager.SelectedObject != null)
+        {
+            double dx =
+                worldPoint.X -
+                lastWorldMousePosition.X;
+
+            double dy =
+                worldPoint.Y -
+                lastWorldMousePosition.Y;
+
+            var translation =
+                TransformationMatrix
+                    .CreateTranslation(
+                        dx,
+                        dy
+                    );
+
+            selectionManager
+                .SelectedObject
+                .Transform =
+                    translation.Multiply(
+                        selectionManager
+                            .SelectedObject
+                            .Transform
+                    );
+
+            lastWorldMousePosition =
+                worldPoint;
+
+            Invalidate();
+
+            return;
+        }
+
         if (!isPanning)
             return;
 
-        int dx =
+        int panDx =
             e.X - lastMousePosition.X;
 
-        int dy =
+        int panDy =
             e.Y - lastMousePosition.Y;
 
-        camera.X -= dx / camera.Zoom;
+        camera.X -= panDx / camera.Zoom;
 
-        camera.Y -= dy / camera.Zoom;
+        camera.Y -= panDy / camera.Zoom;
 
         lastMousePosition = e.Location;
 
@@ -166,45 +262,10 @@ public partial class Form1 : Form
             );
         }
 
-        var worldVertices =
-            rectangle
-                .GetTransformedVertices();
-
-        var cameraMatrix =
-            camera.GetViewMatrix();
-
-        List<VectCore.Core.Geometry.Point2D>
-            vertices = new();
-
-        foreach (var v in worldVertices)
-        {
-            vertices.Add(
-                v.Transform(cameraMatrix)
-            );
-        }
-
-        PointF[] points =
-        [
-            new PointF(
-                (float)vertices[0].X,
-                (float)vertices[0].Y),
-
-            new PointF(
-                (float)vertices[1].X,
-                (float)vertices[1].Y),
-
-            new PointF(
-                (float)vertices[2].X,
-                (float)vertices[2].Y),
-
-            new PointF(
-                (float)vertices[3].X,
-                (float)vertices[3].Y)
-        ];
-
-        g.DrawPolygon(
-            Pens.Black,
-            points
+        SceneRenderer.Render(
+            g,
+            scene,
+            camera
         );
     }
 }
